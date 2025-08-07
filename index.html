@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Météo App</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -141,6 +142,7 @@
             flex-wrap: wrap;
             justify-content: center;
             max-width: 1000px;
+            margin-bottom: 40px;
         }
 
         .forecast-item {
@@ -181,6 +183,30 @@
             font-size: 30px;
         }
 
+        .chart-container {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .chart-title {
+            color: white;
+            font-size: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: 300;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+
         .loading {
             color: white;
             font-size: 18px;
@@ -216,6 +242,15 @@
                 min-width: 120px;
                 padding: 15px;
             }
+
+            .chart-container {
+                margin: 0 10px 30px;
+                padding: 20px;
+            }
+
+            .chart-wrapper {
+                height: 250px;
+            }
         }
     </style>
 </head>
@@ -231,15 +266,24 @@
     
     <div id="currentWeather"></div>
     <div id="forecast" class="forecast-container"></div>
+    
+    <div id="chartContainer" class="chart-container" style="display: none;">
+        <h3 class="chart-title">Évolution des températures - 5 jours</h3>
+        <div class="chart-wrapper">
+            <canvas id="temperatureChart"></canvas>
+        </div>
+    </div>
+
     <div id="loading" class="loading" style="display: none;">Chargement...</div>
     <div id="error" class="error" style="display: none;"></div>
 
     <script>
-        const API_KEY = 'a130162d55d34dbaa1aeafa8bbaf2ba8'; // Replace with your OpenWeatherMap API key
+        const API_KEY = 'a130162d55d34dbaa1aeafa8bbaf2ba8'; 
         const darkModeToggle = document.querySelector('.dark-mode-toggle');
         let isDarkMode = false;
+        let temperatureChart = null;
 
-        // Weather icon mapping
+        
         const weatherIcons = {
             '01d': '☀️', '01n': '🌙',
             '02d': '⛅', '02n': '☁️',
@@ -256,6 +300,11 @@
             isDarkMode = !isDarkMode;
             document.body.classList.toggle('dark-mode');
             darkModeToggle.textContent = isDarkMode ? '☀️' : '🌙';
+            
+            // Mettre à jour le graphique avec les nouvelles couleurs
+            if (temperatureChart) {
+                updateChartTheme();
+            }
         }
 
         function showLoading() {
@@ -287,6 +336,14 @@
             });
         }
 
+        function formatDateShort(timestamp) {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleDateString('fr-FR', { 
+                weekday: 'short',
+                day: 'numeric'
+            });
+        }
+
         function getCurrentDate() {
             const date = new Date();
             return date.toLocaleDateString('fr-FR', { 
@@ -296,11 +353,163 @@
             });
         }
 
+        function createTemperatureChart(forecastData) {
+            const ctx = document.getElementById('temperatureChart').getContext('2d');
+            
+            // Extraire les données pour 5 jours (une mesure par jour)
+            const dailyData = forecastData.list.filter((item, index) => index % 8 === 0).slice(0, 5);
+            
+            const labels = dailyData.map(item => formatDateShort(item.dt));
+            const temperatures = dailyData.map(item => Math.round(item.main.temp));
+            const minTemps = dailyData.map(item => Math.round(item.main.temp_min));
+            const maxTemps = dailyData.map(item => Math.round(item.main.temp_max));
+
+            const textColor = isDarkMode ? '#ffffff' : '#ffffff';
+            const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.3)';
+
+            if (temperatureChart) {
+                temperatureChart.destroy();
+            }
+
+            temperatureChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Température max (°C)',
+                            data: maxTemps,
+                            borderColor: '#ff6b6b',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                            borderWidth: 3,
+                            fill: false,
+                            tension: 0.4,
+                            pointBackgroundColor: '#ff6b6b',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        },
+                        {
+                            label: 'Température (°C)',
+                            data: temperatures,
+                            borderColor: '#f4d03f',
+                            backgroundColor: 'rgba(244, 208, 63, 0.1)',
+                            borderWidth: 3,
+                            fill: false,
+                            tension: 0.4,
+                            pointBackgroundColor: '#f4d03f',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        },
+                        {
+                            label: 'Température min (°C)',
+                            data: minTemps,
+                            borderColor: '#74b9ff',
+                            backgroundColor: 'rgba(116, 185, 255, 0.1)',
+                            borderWidth: 3,
+                            fill: false,
+                            tension: 0.4,
+                            pointBackgroundColor: '#74b9ff',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: textColor,
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            borderWidth: 1,
+                            cornerRadius: 10,
+                            displayColors: true
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: {
+                                color: gridColor,
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: textColor,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        y: {
+                            display: true,
+                            grid: {
+                                color: gridColor,
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: textColor,
+                                callback: function(value) {
+                                    return value + '°C';
+                                },
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            hoverBorderWidth: 3
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChartTheme() {
+            if (!temperatureChart) return;
+
+            const textColor = isDarkMode ? '#ffffff' : '#ffffff';
+            const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.3)';
+
+            temperatureChart.options.plugins.legend.labels.color = textColor;
+            temperatureChart.options.scales.x.ticks.color = textColor;
+            temperatureChart.options.scales.y.ticks.color = textColor;
+            temperatureChart.options.scales.x.grid.color = gridColor;
+            temperatureChart.options.scales.y.grid.color = gridColor;
+            
+            temperatureChart.update();
+        }
+
         async function getWeatherData(city) {
             try {
                 showLoading();
                 
-                // Get current weather
+               
                 const currentResponse = await fetch(
                     `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric&lang=fr`
                 );
@@ -311,7 +520,7 @@
                 
                 const currentData = await currentResponse.json();
                 
-                // Get forecast
+               
                 const forecastResponse = await fetch(
                     `https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=${API_KEY}&units=metric&lang=fr`
                 );
@@ -327,7 +536,7 @@
         }
 
         function displayWeather(current, forecast) {
-            // Display current weather
+            
             const currentWeatherDiv = document.getElementById('currentWeather');
             currentWeatherDiv.innerHTML = `
                 <div class="current-weather">
@@ -338,7 +547,7 @@
                 </div>
             `;
 
-            // Display forecast (next 5 days at noon)
+           
             const forecastDiv = document.getElementById('forecast');
             const dailyForecasts = forecast.list.filter((item, index) => index % 8 === 0).slice(0, 5);
             
@@ -352,6 +561,10 @@
             `).join('');
             
             forecastDiv.innerHTML = forecastHTML;
+
+            // Afficher et créer le graphique
+            document.getElementById('chartContainer').style.display = 'block';
+            createTemperatureChart(forecast);
         }
 
         function searchWeather() {
@@ -363,7 +576,7 @@
             }
         }
 
-        // Enter key support
+        
         document.getElementById('cityInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 searchWeather();
@@ -400,22 +613,22 @@
             }
         }
 
-        // Load weather based on user location on page load
+        
         window.addEventListener('load', function() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
-                    // Success callback
+                    
                     function(position) {
                         const { latitude, longitude } = position.coords;
                         getWeatherByLocation(latitude, longitude);
                     },
-                    // Error callback
+                    
                     function(error) {
                         console.error('Erreur de géolocalisation:', error);
-                        // Fallback to default city if geolocation fails
+                       
                         getWeatherData('Paris');
                     },
-                    // Options
+                    
                     {
                         enableHighAccuracy: true,
                         timeout: 5000,
@@ -424,7 +637,7 @@
                 );
             } else {
                 showError('La géolocalisation n\'est pas supportée par votre navigateur');
-                // Fallback to default city
+                
                 getWeatherData('Paris');
             }
         });
